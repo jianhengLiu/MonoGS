@@ -310,11 +310,12 @@ class BackEnd(mp.Process):
                 self.keyframe_optimizers.step()
                 self.keyframe_optimizers.zero_grad(set_to_none=True)
                 # Pose update
-                for cam_idx in range(min(frames_to_optimize, len(current_window))):
-                    viewpoint = viewpoint_stack[cam_idx]
-                    if viewpoint.uid == 0:
-                        continue
-                    update_pose(viewpoint)
+                # https://github.com/muskie82/MonoGS/issues/6#issuecomment-1980963572
+                # for cam_idx in range(min(frames_to_optimize, len(current_window))):
+                #     viewpoint = viewpoint_stack[cam_idx]
+                #     if viewpoint.uid == 0:
+                #         continue
+                #     update_pose(viewpoint)
         return gaussian_split
 
     def color_refinement(self):

@@ -177,7 +177,10 @@ class FrontEnd(mp.Process):
 
             with torch.no_grad():
                 pose_optimizer.step()
-                converged = update_pose(viewpoint)
+                # https://github.com/muskie82/MonoGS/issues/6#issuecomment-1980963572
+                # converged = update_pose(viewpoint)
+                viewpoint.update_RT(viewpoint.R_gt, viewpoint.T_gt)
+                converged = True
 
             if tracking_itr % 10 == 0:
                 self.q_main2vis.put(
@@ -346,14 +349,14 @@ class FrontEnd(mp.Process):
                 tic.record()
                 if cur_frame_idx >= len(self.dataset):
                     if self.save_results:
-                        eval_ate(
-                            self.cameras,
-                            self.kf_indices,
-                            self.save_dir,
-                            0,
-                            final=True,
-                            monocular=self.monocular,
-                        )
+                        # eval_ate(
+                        #     self.cameras,
+                        #     self.kf_indices,
+                        #     self.save_dir,
+                        #     0,
+                        #     final=True,
+                        #     monocular=self.monocular,
+                        # )
                         save_gaussians(
                             self.gaussians, self.save_dir, "final", final=True
                         )
@@ -465,13 +468,13 @@ class FrontEnd(mp.Process):
                     and len(self.kf_indices) % self.save_trj_kf_intv == 0
                 ):
                     Log("Evaluating ATE at frame: ", cur_frame_idx)
-                    eval_ate(
-                        self.cameras,
-                        self.kf_indices,
-                        self.save_dir,
-                        cur_frame_idx,
-                        monocular=self.monocular,
-                    )
+                    # eval_ate(
+                    #     self.cameras,
+                    #     self.kf_indices,
+                    #     self.save_dir,
+                    #     cur_frame_idx,
+                    #     monocular=self.monocular,
+                    # )
                 toc.record()
                 torch.cuda.synchronize()
                 if create_kf:
