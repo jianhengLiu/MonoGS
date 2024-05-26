@@ -14,11 +14,14 @@ from evo.tools.settings import SETTINGS
 from matplotlib import pyplot as plt
 from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
 
+from tqdm import tqdm
 import wandb
 from gaussian_splatting.gaussian_renderer import render
+from gaussian_splatting.utils.graphics_utils import getProjectionMatrix2
 from gaussian_splatting.utils.image_utils import psnr
 from gaussian_splatting.utils.loss_utils import ssim
 from gaussian_splatting.utils.system_utils import mkdir_p
+from utils.camera_utils import Camera
 from utils.logging_utils import Log
 
 
@@ -124,19 +127,37 @@ def eval_rendering(
     kf_indices,
     iteration="final",
 ):
-    interval = 5
+    interval = 1
     img_pred, img_gt, saved_frame_idx = [], [], []
     end_idx = len(frames) - 1 if iteration == "final" or "before_opt" else iteration
+    end_idx = len(dataset.poses) - 1
     psnr_array, ssim_array, lpips_array = [], [], []
     cal_lpips = LearnedPerceptualImagePatchSimilarity(
         net_type="alex", normalize=True
     ).to("cuda")
-    for idx in range(0, end_idx, interval):
-        if idx in kf_indices:
-            continue
+
+    projection_matrix = getProjectionMatrix2(
+        znear=0.01,
+        zfar=100.0,
+        fx=dataset.fx,
+        fy=dataset.fy,
+        cx=dataset.cx,
+        cy=dataset.cy,
+        W=dataset.width,
+        H=dataset.height,
+    ).transpose(0, 1)
+    projection_matrix = projection_matrix.cuda()
+    for idx in tqdm(range(0, end_idx, interval)):
+        # if idx in kf_indices:
+        #     continue
         saved_frame_idx.append(idx)
-        frame = frames[idx]
-        gt_image, _, _ = dataset[idx]
+        # frame = frames[idx]
+        gt_image, _, gt_pose = dataset[idx]
+
+        frame = Camera.init_from_dataset(dataset, idx, projection_matrix)
+        
+        # Initialise the frame at the ground truth pose
+        frame.update_RT(frame.R_gt, frame.T_gt)
 
         rendering = render(frame, gaussians, pipe, background)["render"]
         image = torch.clamp(rendering, 0.0, 1.0)
@@ -178,6 +199,16 @@ def eval_rendering(
         open(os.path.join(psnr_save_dir, "final_result.json"), "w", encoding="utf-8"),
         indent=4,
     )
+
+    # save img_pred and img_gt
+    gt_image_dir = os.path.join(psnr_save_dir, "gt")
+    pred_image_dir = os.path.join(psnr_save_dir, "renders")
+    mkdir_p(gt_image_dir)
+    mkdir_p(pred_image_dir)
+    for i, (pred, gt) in enumerate(zip(img_pred, img_gt)):
+        cv2.imwrite(os.path.join(gt_image_dir, f"frame{i:06d}.jpg"), gt)
+        cv2.imwrite(os.path.join(pred_image_dir, f"frame{i:06d}.jpg"), pred)
+        
     return output
 
 

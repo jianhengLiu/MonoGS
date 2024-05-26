@@ -173,8 +173,7 @@ class EuRoCParser:
             trans = data[pose_indices[i], 1:4]
             quat = data[pose_indices[i], 4:8]
             quat = quat[[1, 2, 3, 0]]
-            
-            
+
             T_w_i = trimesh.transformations.quaternion_matrix(np.roll(quat, 1))
             T_w_i[:3, 3] = trans
             T_w_c = np.dot(T_w_i, T_i_c0)
@@ -405,10 +404,13 @@ class TUMDataset(MonocularDataset):
 
 
 class ReplicaDataset(MonocularDataset):
-    def __init__(self, args, path, config):
+    def __init__(self, args, path, config, eval=False):
         super().__init__(args, path, config)
         dataset_path = config["Dataset"]["dataset_path"]
-        parser = ReplicaParser(dataset_path)
+        if eval:
+            parser = ReplicaParser(dataset_path + "eval")
+        else:
+            parser = ReplicaParser(dataset_path)
         self.num_imgs = parser.n_img
         self.color_paths = parser.color_paths
         self.depth_paths = parser.depth_paths
@@ -431,15 +433,17 @@ class RealsenseDataset(BaseDataset):
         super().__init__(args, path, config)
         self.pipeline = rs.pipeline()
         self.h, self.w = 720, 1280
-        
+
         self.depth_scale = 0
         if self.config["Dataset"]["sensor_type"] == "depth":
-            self.has_depth = True 
-        else: 
+            self.has_depth = True
+        else:
             self.has_depth = False
 
         self.rs_config = rs.config()
-        self.rs_config.enable_stream(rs.stream.color, self.w, self.h, rs.format.bgr8, 30)
+        self.rs_config.enable_stream(
+            rs.stream.color, self.w, self.h, rs.format.bgr8, 30
+        )
         if self.has_depth:
             self.rs_config.enable_stream(rs.stream.depth)
 
@@ -458,7 +462,7 @@ class RealsenseDataset(BaseDataset):
             self.profile.get_stream(rs.stream.color)
         )
         self.rgb_intrinsics = self.rgb_profile.get_intrinsics()
-        
+
         self.fx = self.rgb_intrinsics.fx
         self.fy = self.rgb_intrinsics.fy
         self.cx = self.rgb_intrinsics.ppx
@@ -479,14 +483,11 @@ class RealsenseDataset(BaseDataset):
 
         if self.has_depth:
             self.depth_sensor = self.profile.get_device().first_depth_sensor()
-            self.depth_scale  = self.depth_sensor.get_depth_scale()
+            self.depth_scale = self.depth_sensor.get_depth_scale()
             self.depth_profile = rs.video_stream_profile(
                 self.profile.get_stream(rs.stream.depth)
             )
             self.depth_intrinsics = self.depth_profile.get_intrinsics()
-        
-        
-
 
     def __getitem__(self, idx):
         pose = torch.eye(4, device=self.device, dtype=self.dtype)
@@ -498,7 +499,7 @@ class RealsenseDataset(BaseDataset):
             aligned_frames = self.align.process(frameset)
             rgb_frame = aligned_frames.get_color_frame()
             aligned_depth_frame = aligned_frames.get_depth_frame()
-            depth = np.array(aligned_depth_frame.get_data())*self.depth_scale
+            depth = np.array(aligned_depth_frame.get_data()) * self.depth_scale
             depth[depth < 0] = 0
             np.nan_to_num(depth, nan=1000)
         else:
@@ -519,11 +520,11 @@ class RealsenseDataset(BaseDataset):
         return image, depth, pose
 
 
-def load_dataset(args, path, config):
+def load_dataset(args, path, config, eval=False):
     if config["Dataset"]["type"] == "tum":
         return TUMDataset(args, path, config)
     elif config["Dataset"]["type"] == "replica":
-        return ReplicaDataset(args, path, config)
+        return ReplicaDataset(args, path, config, eval)
     elif config["Dataset"]["type"] == "euroc":
         return EurocDataset(args, path, config)
     elif config["Dataset"]["type"] == "realsense":

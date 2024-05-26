@@ -55,6 +55,9 @@ class SLAM:
         self.dataset = load_dataset(
             model_params, model_params.source_path, config=config
         )
+        self.eval_dataset = load_dataset(
+            model_params, model_params.source_path, config=config, eval=True
+        )
 
         self.gaussians.training_setup(opt_params)
         bg_color = [0, 0, 0]
@@ -151,6 +154,27 @@ class SLAM:
                 FPS,
             )
 
+            rendering_result = eval_rendering(
+                self.frontend.cameras,
+                self.gaussians,
+                self.eval_dataset,
+                self.save_dir,
+                self.pipeline_params,
+                self.background,
+                kf_indices=kf_indices,
+                iteration="before_opt_eval",
+            )
+            columns = ["tag", "psnr", "ssim", "lpips", "RMSE ATE", "FPS"]
+            metrics_table = wandb.Table(columns=columns)
+            metrics_table.add_data(
+                "Before_eval",
+                rendering_result["mean_psnr"],
+                rendering_result["mean_ssim"],
+                rendering_result["mean_lpips"],
+                ATE,
+                FPS,
+            )
+
             # re-used the frontend queue to retrive the gaussians from the backend.
             while not frontend_queue.empty():
                 frontend_queue.get()
@@ -177,6 +201,27 @@ class SLAM:
             )
             metrics_table.add_data(
                 "After",
+                rendering_result["mean_psnr"],
+                rendering_result["mean_ssim"],
+                rendering_result["mean_lpips"],
+                ATE,
+                FPS,
+            )
+
+            rendering_result = eval_rendering(
+                self.frontend.cameras,
+                self.gaussians,
+                self.eval_dataset,
+                self.save_dir,
+                self.pipeline_params,
+                self.background,
+                kf_indices=kf_indices,
+                iteration="after_opt_eval",
+            )
+            columns = ["tag", "psnr", "ssim", "lpips", "RMSE ATE", "FPS"]
+            metrics_table = wandb.Table(columns=columns)
+            metrics_table.add_data(
+                "After_eval",
                 rendering_result["mean_psnr"],
                 rendering_result["mean_ssim"],
                 rendering_result["mean_lpips"],

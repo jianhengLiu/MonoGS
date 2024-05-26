@@ -1,3 +1,8 @@
+Modified for mapping using ground truth poses to evalulate mapping
+
+- be awared that this origin evaluation not include pixel without depth
+  - mask = gt_image > 0
+
 [comment]: <> (# Gaussian Splatting SLAM)
 
 <!-- PROJECT LOGO -->
